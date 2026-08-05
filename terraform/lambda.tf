@@ -28,9 +28,9 @@ resource "aws_iam_role_policy_attachment" "web_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Same least-privilege data-plane permissions the local dev role uses:
-# S3 Vectors query + Bedrock embed/chat + guardrail + DynamoDB usage table.
-# The app runs directly as this role on Lambda (no AWS_ROLE_ARN / AssumeRole).
+# The shared least-privilege data-plane policy (data.aws_iam_policy_document.dev
+# in iam.tf): S3 Vectors query + Bedrock embed/chat + guardrail + DynamoDB usage
+# table. The app runs directly as this role on Lambda (no AWS_ROLE_ARN / AssumeRole).
 resource "aws_iam_role_policy" "web_lambda" {
   name   = "${var.project_name}-web-lambda-policy"
   role   = aws_iam_role.web_lambda.id

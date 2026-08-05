@@ -1,26 +1,10 @@
-# Role that the indexer and Next.js API routes assume to get least-privilege,
-# temporary credentials scoped to exactly this index + the one Bedrock model.
-resource "aws_iam_role" "dev" {
-  name        = "${var.project_name}-dev"
-  description = "Local dev + indexer role for the pablo.one S3 Vectors website-search POC."
-
-  # Trust policy: allow the account root to assume. This lets any principal in
-  # the account (your local dev identity) run `sts:AssumeRole` for this POC.
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowAccountRootAssume"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
+# The app's least-privilege data-plane policy: exactly this index + the specific
+# Bedrock models + the guardrail + the usage table, and nothing else.
+#
+# Consumed by the web Lambda's execution role (see lambda.tf). Locally, the
+# indexer and dev server just run as whatever identity you're logged into the
+# account with, so there is no separate role to assume — hence no aws_iam_role
+# here, only the policy document.
 data "aws_iam_policy_document" "dev" {
   # Vector data-plane operations, scoped to the specific bucket + index ARNs.
   # NOTE: QueryVectors with returnMetadata=true also requires GetVectors.
@@ -90,8 +74,3 @@ data "aws_iam_policy_document" "dev" {
   }
 }
 
-resource "aws_iam_role_policy" "dev" {
-  name   = "${var.project_name}-dev-policy"
-  role   = aws_iam_role.dev.id
-  policy = data.aws_iam_policy_document.dev.json
-}

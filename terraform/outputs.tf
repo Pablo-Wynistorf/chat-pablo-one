@@ -23,11 +23,6 @@ output "index_arn" {
   value       = aws_s3vectors_index.pages.index_arn
 }
 
-output "dev_role_arn" {
-  description = "ARN of the least-privilege dev role the app + indexer assume."
-  value       = aws_iam_role.dev.arn
-}
-
 output "bedrock_model_id" {
   description = "Bedrock embedding model id."
   value       = var.bedrock_model_id
@@ -117,9 +112,11 @@ output "web_lambda_name" {
 # Contains only ARNs/names — no secrets — so it is safe to print.
 output "env_local" {
   description = "Paste into web/.env.local (see README.md)."
-  value       = <<-EOT
+  # No AWS_ROLE_ARN: locally the indexer/dev server use your logged-in account
+  # credentials directly (indexer/lib/aws.ts only assumes a role when the var is
+  # set). On Lambda the app runs as its own execution role.
+  value = <<-EOT
     AWS_REGION=${var.region}
-    AWS_ROLE_ARN=${aws_iam_role.dev.arn}
     VECTOR_BUCKET=${aws_s3vectors_vector_bucket.this.vector_bucket_name}
     VECTOR_INDEX=${aws_s3vectors_index.pages.index_name}
     BEDROCK_MODEL_ID=${var.bedrock_model_id}

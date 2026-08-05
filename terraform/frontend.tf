@@ -82,9 +82,10 @@ module "frontend_files" {
   source = "./modules/s3-site-upload"
 
   bucket = aws_s3_bucket.frontend.id
-  # built_* rather than static_dir: the value carries the dependency on the build,
-  # so the module's fileset() can't enumerate the directory before it is written.
-  source_dir = local.built_static_dir
+  # local.static_dir flows from data.external.web_build, so its value carries the
+  # dependency on the build: the module's fileset() cannot enumerate the directory
+  # before the build has written it.
+  source_dir = local.static_dir
 
   # Everything is served through CloudFront with a 60s TTL; matching the object
   # header keeps browser and edge behaviour consistent.
