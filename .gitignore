@@ -1,0 +1,23 @@
+node_modules/
+.next/
+.env.local
+
+# indexer/data/*.json is COMMITTED on purpose: `terraform apply` embeds and loads
+# those chunks into the vector index, so a fresh clone must already contain them.
+# Re-generate them with `cd indexer && npm run ingest:all` (needs network access).
+
+# Terraform local state
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+
+# Real variable values (domain, cert ARN). terraform.tfvars.example is committed.
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+
+# Build artifacts, produced by Terraform during plan (web/tf-build.sh)
+web/.lambda/
+web/.static/
+web/.build-stamp
+terraform/build/

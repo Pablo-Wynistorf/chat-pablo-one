@@ -1,0 +1,72 @@
+# Copy to terraform.tfvars and edit, then `terraform apply`.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# terraform.tfvars is gitignored; this example file is committed. Every value
+# below is optional — `terraform apply` with no tfvars at all deploys a working
+# chatbot on the generated API Gateway URL.
+
+# ---------------------------------------------------------------------------
+# Custom domain (optional — set BOTH or NEITHER)
+# ---------------------------------------------------------------------------
+
+# Bare hostname, no scheme and no trailing slash.
+# domain_name = "chat.pablo.one"
+
+# ACM certificate covering domain_name.
+# IMPORTANT: it must be issued in `region` below (eu-central-1 by default), not
+# us-east-1. A regional API Gateway domain cannot use an us-east-1 certificate;
+# Terraform checks this before calling AWS and tells you if it's wrong.
+# acm_certificate_arn = "arn:aws:acm:eu-central-1:674904383888:certificate/00000000-0000-0000-0000-000000000000"
+
+# DNS: leave route53_zone_id unset unless the zone is actually in Route 53.
+# For Cloudflare or any other provider, apply first, then create the CNAME shown
+# in the `dns_record` output:
+#
+#   terraform output dns_record
+#
+# Only set this if domain_name's zone lives in Route 53, in which case Terraform
+# creates the alias record too and the deploy needs no manual DNS step.
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+
+# ---------------------------------------------------------------------------
+# Core settings
+# ---------------------------------------------------------------------------
+
+# region       = "eu-central-1"   # S3 Vectors + Bedrock Titan v2 must both exist here
+# project_name = "pablo-one-poc"  # prefix for every created resource
+# site_url     = "https://www.pablo.one"  # the site being indexed; also used in the chat persona
+
+# ---------------------------------------------------------------------------
+# Cost + abuse limits
+# ---------------------------------------------------------------------------
+
+# daily_budget_usd       = 0.5   # stop generating once the day's AI spend hits this
+# ip_daily_message_limit = 50    # max chat messages per public IP per day
+# max_input_tokens       = 400   # reject a single message longer than this (estimated)
+
+# ---------------------------------------------------------------------------
+# Guardrail
+# ---------------------------------------------------------------------------
+
+# Shown when the guardrail blocks an off-topic request. The live guardrail
+# currently differs from the variable default, so `apply` would reset it —
+# uncomment this to keep the deployed wording.
+# guardrail_blocked_message = "Thanks for your question! I'm happy to answer all your questions about me. If you want to learn more about different topics, please use claude.ai or chatgpt.com."
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+# Changing the embedding model invalidates every stored vector and triggers a full
+# re-embed on the next apply (~$0.22 for the current corpus).
+# bedrock_model_id = "amazon.titan-embed-text-v2:0"
+# chat_model_id    = "eu.amazon.nova-micro-v1:0"
+
+# ---------------------------------------------------------------------------
+# Web Lambda
+# ---------------------------------------------------------------------------
+
+# web_lambda_memory  = 1024  # MB; more memory also means more vCPU
+# web_lambda_timeout = 30    # seconds; capped at 30 by API Gateway HTTP API
+# log_retention_days = 14

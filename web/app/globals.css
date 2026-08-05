@@ -1,0 +1,296 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Themes
+   ---------------------------------------------------------------------------
+   Three looks, selected by `data-theme` on <html>:
+     light     — the default paper look
+     dark      — low-light, same layout
+     colorful  — the animated WebGL gradient from color.onedns.ch behind
+                 translucent, blurred panels
+
+   Channels are stored as "R G B" so Tailwind's alpha modifiers work
+   (see tailwind.config.ts). The *-a variables control per-theme surface
+   opacity: opaque for light/dark, translucent in colorful so the gradient
+   reads through. That's why surfaces use the .panel/.bubble-* classes below
+   instead of plain `bg-surface` — one class, three very different looks, with
+   no conditionals in the components.
+--------------------------------------------------------------------------- */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --c-bg: 248 250 252; /* slate-50  */
+  --c-surface: 255 255 255;
+  --c-elevated: 241 245 249; /* slate-100 */
+  --c-fg: 15 23 42; /* slate-900 */
+  --c-muted: 100 116 139; /* slate-500 */
+  --c-faint: 148 163 184; /* slate-400 */
+  --c-line: 226 232 240; /* slate-200 */
+  --c-accent: 15 23 42;
+  --c-accent-fg: 255 255 255;
+  --c-accent-soft: 224 242 254; /* sky-100 */
+
+  --surface-a: 1;
+  --elevated-a: 1;
+  --line-a: 1;
+  --blur: 0px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-bg: 9 11 16;
+  --c-surface: 22 26 34;
+  --c-elevated: 30 36 46;
+  --c-fg: 236 240 246;
+  --c-muted: 148 160 178;
+  --c-faint: 108 120 138;
+  --c-line: 44 52 66;
+  --c-accent: 99 179 255;
+  --c-accent-fg: 8 12 20;
+  --c-accent-soft: 30 48 72;
+
+  --surface-a: 1;
+  --elevated-a: 1;
+  --line-a: 1;
+  --blur: 0px;
+}
+
+[data-theme="colorful"] {
+  color-scheme: dark;
+
+  /* The gradient supplies the background, so --c-bg is only a fallback for the
+     moment before the canvas paints (and for reduced-motion, see below). */
+  --c-bg: 26 22 46;
+  --c-surface: 255 255 255;
+  --c-elevated: 255 255 255;
+  --c-fg: 255 255 255;
+  --c-muted: 236 233 248;
+  --c-faint: 214 210 235;
+  --c-line: 255 255 255;
+  --c-accent: 255 255 255;
+  --c-accent-fg: 32 24 56;
+  --c-accent-soft: 255 255 255;
+
+  --surface-a: 0.14;
+  --elevated-a: 0.1;
+  --line-a: 0.28;
+  --blur: 16px;
+}
+
+/* Static stand-in for the animated canvas: used when the iframe is suppressed
+   for reduced-motion, and visible for the split second before it loads. */
+[data-theme="colorful"] body {
+  background-image:
+    radial-gradient(at 18% 22%, #a960ee 0px, transparent 55%),
+    radial-gradient(at 82% 18%, #ff333d 0px, transparent 50%),
+    radial-gradient(at 24% 82%, #90e0ff 0px, transparent 50%),
+    radial-gradient(at 78% 76%, #ffcb57 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-fg antialiased;
+    /* Theme switches shouldn't strobe, but don't animate for reduced-motion users. */
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+
+  /* Keep focus rings visible and on-theme across all three palettes. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent/70 ring-offset-2 ring-offset-bg;
+  }
+
+  /* A FIXED, high-contrast selection highlight — not the theme accent.
+     The accent-at-28% version was invisible on the two dark surfaces (the
+     accent-coloured visitor bubble and the always-dark code blocks), which made
+     selection look disabled even though it wasn't. A light highlight with dark
+     text stays readable on every surface: light prose, the dark bubble, and code. */
+  ::selection {
+    background-color: #9ec7ff;
+    color: #0b1220;
+  }
+  ::-moz-selection {
+    background-color: #9ec7ff;
+    color: #0b1220;
+  }
+
+  /* Nothing sets user-select:none, but state it positively on the things people
+     actually copy so no future base rule can silently break it again. */
+  .bubble-in,
+  .bubble-out,
+  .code-shell,
+  .code-inline {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+@layer components {
+  /* A card / panel. Opaque in light+dark, frosted glass in colorful. */
+  .panel {
+    background-color: rgb(var(--c-surface) / var(--surface-a));
+    border: 1px solid rgb(var(--c-line) / var(--line-a));
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+  }
+
+  /* Recessed panel, e.g. the visitor detail grid. */
+  .panel-sunken {
+    background-color: rgb(var(--c-elevated) / var(--elevated-a));
+    border: 1px solid rgb(var(--c-line) / var(--line-a));
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+  }
+
+  /* Assistant message bubble. */
+  .bubble-in {
+    background-color: rgb(var(--c-surface) / var(--surface-a));
+    border: 1px solid rgb(var(--c-line) / var(--line-a));
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+  }
+
+  /* Visitor message bubble — the one solid, high-contrast element. */
+  .bubble-out {
+    background-color: rgb(var(--c-accent) / 1);
+    color: rgb(var(--c-accent-fg) / 1);
+    border: 1px solid transparent;
+  }
+
+  [data-theme="colorful"] .bubble-out {
+    background-color: rgb(255 255 255 / 0.92);
+  }
+
+  /* Pill button: suggestions, source links, the details toggle. */
+  .chip {
+    background-color: rgb(var(--c-surface) / var(--surface-a));
+    border: 1px solid rgb(var(--c-line) / var(--line-a));
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+    @apply rounded-full transition;
+  }
+
+  .chip:hover:not(:disabled) {
+    border-color: rgb(var(--c-accent) / 0.5);
+    color: rgb(var(--c-accent) / 1);
+  }
+
+  [data-theme="colorful"] .chip:hover:not(:disabled) {
+    background-color: rgb(255 255 255 / 0.26);
+    color: rgb(255 255 255 / 1);
+  }
+
+  /* Text input. */
+  .field {
+    background-color: rgb(var(--c-surface) / var(--surface-a));
+    border: 1px solid rgb(var(--c-line) / var(--line-a));
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+    @apply text-fg placeholder:text-faint;
+  }
+
+  .field:focus {
+    border-color: rgb(var(--c-accent) / 0.6);
+  }
+
+  /* Primary action. */
+  .btn-primary {
+    background-color: rgb(var(--c-accent) / 1);
+    color: rgb(var(--c-accent-fg) / 1);
+    @apply transition;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
+
+  [data-theme="colorful"] .btn-primary {
+    background-color: rgb(255 255 255 / 0.92);
+  }
+
+  /* Inline `code` and small icon tiles.
+     These must NOT use Tailwind's `bg-elevated`: that compiles to
+     rgb(var(--c-elevated) / 1), ignoring --elevated-a. In the colorful theme
+     --c-elevated is pure white, so `bg-elevated` rendered a SOLID WHITE box —
+     and with white foreground text the content vanished into it. */
+  .code-inline {
+    background-color: rgb(var(--c-elevated) / var(--elevated-a));
+    border: 1px solid rgb(var(--c-line) / calc(var(--line-a) * 0.5));
+    @apply rounded px-1 py-0.5 font-mono text-[0.85em];
+  }
+
+  .tile {
+    background-color: rgb(var(--c-elevated) / var(--elevated-a));
+    border: 1px solid rgb(var(--c-line) / calc(var(--line-a) * 0.5));
+  }
+
+  /* Over the gradient a 10%-white tile gives white text almost no contrast, so
+     darken instead of lighten. */
+  [data-theme="colorful"] .code-inline,
+  [data-theme="colorful"] .tile {
+    background-color: rgb(0 0 0 / 0.32);
+    border-color: rgb(255 255 255 / 0.18);
+  }
+
+  /* Code blocks stay dark in every theme — syntax reads best that way. */
+  .code-shell {
+    @apply w-full min-w-0 max-w-full overflow-hidden rounded-lg border;
+    background-color: rgb(12 15 22 / 0.92);
+    border-color: rgb(255 255 255 / 0.12);
+    backdrop-filter: blur(var(--blur));
+    -webkit-backdrop-filter: blur(var(--blur));
+  }
+
+  /* A bubble containing a code block takes the column's full width.
+     Without this the bubble is shrink-to-fit, and since a <pre> reports its
+     longest line as its min-content width, one long line (a curl command with a
+     full raw.githubusercontent.com URL) stretched the bubble far past a text
+     answer's width — the horizontal scroll never engaged because the box grew
+     instead. Giving it a definite width makes the <pre> scroll, as intended.
+     Text-only bubbles are untouched and still hug their content. */
+  .bubble-in:has(pre),
+  .bubble-out:has(pre) {
+    width: 100%;
+  }
+}
+
+@layer utilities {
+  /* Slim, theme-aware scrollbar for the transcript. */
+  .scroll-slim {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--c-faint) / 0.5) transparent;
+    /* Reserve the gutter so the centred column doesn't shift sideways the moment
+       the transcript grows past one screen. */
+    scrollbar-gutter: stable;
+  }
+
+  .scroll-slim::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--c-faint) / 0.45);
+    border-radius: 9999px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
