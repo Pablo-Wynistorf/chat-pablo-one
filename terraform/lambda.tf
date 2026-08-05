@@ -54,9 +54,10 @@ resource "aws_lambda_function" "web" {
 
   runtime       = "nodejs20.x"
   architectures = ["arm64"]
-  handler       = "run.sh"
-  memory_size   = var.web_lambda_memory
-  timeout       = var.web_lambda_timeout
+  # Generated into the artifact by build.tf; the repo has no shell scripts.
+  handler     = "run.sh"
+  memory_size = var.web_lambda_memory
+  timeout     = var.web_lambda_timeout
 
   # The Lambda Web Adapter layer provides /opt/bootstrap.
   layers = [var.lwa_layer_arn]

@@ -16,7 +16,7 @@ terraform/*.tfplan
 terraform/terraform.tfvars
 terraform/*.auto.tfvars
 
-# Build artifacts, produced by Terraform during plan (web/tf-build.sh)
+# Build artifacts, produced by Terraform during plan (terraform/build.tf)
 web/.lambda/
 web/.static/
 web/.build-stamp

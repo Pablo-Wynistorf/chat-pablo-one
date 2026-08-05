@@ -190,8 +190,9 @@ That single apply does everything:
 
 1. Creates the vector bucket and `pages` index, the frontend bucket, the CloudFront
    distribution, the guardrail, the usage table and the IAM roles.
-2. **Builds the app** (`web/tf-build.sh` → `web/build.sh`), producing both artifacts from one
-   `next build`: `web/.static/` for S3 and `web/.lambda/` for the API function.
+2. **Builds the app** — `npm ci` then one `next build`, driven entirely by
+   `terraform/build.tf` (there are no shell scripts in the repo), producing both
+   artifacts: `web/.static/` for S3 and `web/.lambda/` for the API function.
 3. **Uploads the frontend** to S3 as individually managed objects, via the local
    `modules/s3-site-upload` module, then invalidates the CloudFront cache.
 4. **Embeds the committed chunks in `indexer/data/*.json` and loads them into the index**
@@ -205,9 +206,10 @@ machine running it**.
 > `data.archive_file` are both resolved during *plan*, so the artifacts must exist by then.
 > A `local-exec` provisioner runs during *apply* — too late, and on a fresh clone the upload
 > module would enumerate an empty directory and deploy nothing. `data "external"` runs at
-> plan time, which makes a single apply work from a clean checkout. The cost is that the
-> build script runs on every plan, so it stamps a hash of its inputs and skips itself when
-> nothing changed.
+> plan time, which makes a single apply work from a clean checkout. Terraform fingerprints
+> the build inputs itself (`fileset` + `filesha256` over `web/app`, `web/components`,
+> `web/lib`, `web/public` and the configs) and compares that with `web/.build-stamp`, so
+> when nothing changed the data source gets `count = 0` and the build never starts.
 
 `indexer/data/*.json` is **committed to the repo on purpose** — that's what makes step 3
 possible from a fresh clone. Re-crawling is a separate, deliberate action (step 2 below).

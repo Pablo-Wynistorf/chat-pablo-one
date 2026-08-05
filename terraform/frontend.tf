@@ -81,8 +81,10 @@ resource "aws_s3_bucket_policy" "frontend" {
 module "frontend_files" {
   source = "./modules/s3-site-upload"
 
-  bucket     = aws_s3_bucket.frontend.id
-  source_dir = local.static_dir
+  bucket = aws_s3_bucket.frontend.id
+  # built_* rather than static_dir: the value carries the dependency on the build,
+  # so the module's fileset() can't enumerate the directory before it is written.
+  source_dir = local.built_static_dir
 
   # Everything is served through CloudFront with a 60s TTL; matching the object
   # header keeps browser and edge behaviour consistent.
