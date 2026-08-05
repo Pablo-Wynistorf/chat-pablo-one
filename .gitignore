@@ -21,3 +21,6 @@ web/.lambda/
 web/.static/
 web/.build-stamp
 terraform/build/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

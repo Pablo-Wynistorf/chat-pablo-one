@@ -17,7 +17,7 @@
 # IMPORTANT: it must be issued in `region` below (eu-central-1 by default), not
 # us-east-1. A regional API Gateway domain cannot use an us-east-1 certificate;
 # Terraform checks this before calling AWS and tells you if it's wrong.
-# acm_certificate_arn = "arn:aws:acm:eu-central-1:674904383888:certificate/00000000-0000-0000-0000-000000000000"
+# acm_certificate_arn = "arn:aws:acm:eu-central-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
 
 # DNS: leave route53_zone_id unset unless the zone is actually in Route 53.
 # For Cloudflare or any other provider, apply first, then create the CNAME shown

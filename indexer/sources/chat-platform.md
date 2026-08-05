@@ -1,6 +1,6 @@
 ---
 title: How this chat platform works — architecture, data and cost
-url: https://github.com/Pablo-Wynistorf/pablo.one-ai-chat--s3-vectors
+url: https://github.com/Pablo-Wynistorf/chat-pablo-one
 section: platform
 description: How Pablo's AI chat is built — the AWS architecture, how the data is stored and retrieved, and what it costs per month to run.
 ---
