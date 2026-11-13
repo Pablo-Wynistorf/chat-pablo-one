@@ -52,6 +52,17 @@ variable "site_url" {
   default     = "https://www.pablo.one"
 }
 
+variable "cors_allowed_origins" {
+  description = "Browser origins (scheme://host[:port], no trailing slash) allowed to call the API cross-origin. The chat page itself is same-origin and doesn't need an entry."
+  type        = list(string)
+  default = [
+    "https://pablo.one",
+    "https://www.pablo.one",
+    "http://localhost",
+    "http://localhost:3000",
+  ]
+}
+
 variable "guardrail_blocked_message" {
   description = "Message shown when the guardrail blocks an off-topic request."
   type        = string

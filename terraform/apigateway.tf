@@ -6,6 +6,18 @@ resource "aws_apigatewayv2_api" "web" {
   name          = "${var.project_name}-web"
   description   = "HTTP API for the pablo.one Next.js chatbot."
   protocol_type = "HTTP"
+
+  # API Gateway answers OPTIONS preflights itself (no route or Lambda call needed)
+  # and adds the CORS headers to every response. CloudFront's /api/* behaviour
+  # already allows OPTIONS and forwards the Origin header to this API.
+  cors_configuration {
+    allow_origins = var.cors_allowed_origins
+    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_headers = ["content-type"]
+    # Read by the page from /api/greeting and /api/chat responses.
+    expose_headers = ["x-visitor", "x-sources"]
+    max_age        = 600
+  }
 }
 
 resource "aws_apigatewayv2_integration" "web" {
