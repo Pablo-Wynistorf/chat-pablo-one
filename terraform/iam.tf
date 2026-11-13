@@ -1,48 +1,39 @@
-# The app's least-privilege data-plane policy: exactly this index + the specific
-# Bedrock models + the guardrail + the usage table, and nothing else.
-#
-# Consumed by the web Lambda's execution role (see lambda.tf). Locally, the
-# indexer and dev server just run as whatever identity you're logged into the
-# account with, so there is no separate role to assume — hence no aws_iam_role
-# here, only the policy document.
-data "aws_iam_policy_document" "dev" {
-  # Vector data-plane operations, scoped to the specific bucket + index ARNs.
-  # NOTE: QueryVectors with returnMetadata=true also requires GetVectors.
+# One execution role per function (roles themselves live in functions.tf), each
+# with a policy scoped to exactly what that function's code calls.
+
+data "aws_iam_policy_document" "lambda_assume" {
   statement {
-    sid    = "S3VectorsDataPlane"
-    effect = "Allow"
-    actions = [
-      "s3vectors:PutVectors",
-      "s3vectors:QueryVectors",
-      "s3vectors:GetVectors",
-      "s3vectors:DeleteVectors",
-      "s3vectors:ListVectors",
-    ]
-    resources = [
-      aws_s3vectors_vector_bucket.this.vector_bucket_arn,
-      aws_s3vectors_index.pages.index_arn,
-    ]
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+# --- api ---------------------------------------------------------------------
+# Calls: QueryVectors, InvokeModel (embed), ConverseStream (chat + guardrail),
+# DynamoDB GetItem/UpdateItem on the usage table.
+data "aws_iam_policy_document" "api" {
+  # QueryVectors with returnMetadata=true also requires GetVectors.
+  statement {
+    sid       = "S3VectorsQuery"
+    actions   = ["s3vectors:QueryVectors", "s3vectors:GetVectors"]
+    resources = [aws_s3vectors_index.pages.index_arn]
   }
 
-  # Bedrock embeddings, scoped to just the Titan Embed Text v2 model.
   statement {
-    sid    = "BedrockEmbed"
-    effect = "Allow"
-    actions = [
-      "bedrock:InvokeModel",
-    ]
-    resources = [
-      "arn:aws:bedrock:${var.region}::foundation-model/${var.bedrock_model_id}",
-    ]
+    sid       = "BedrockEmbed"
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["arn:aws:bedrock:${var.region}::foundation-model/${var.bedrock_model_id}"]
   }
 
-  # Bedrock text generation for the RAG chatbot (Converse + streaming).
-  # The chat model is a cross-region inference profile, so we must allow both
-  # the inference-profile resource and the underlying foundation model in every
-  # region the profile can route to (hence the region wildcard on the model).
+  # The chat model is a cross-region inference profile, so both the profile and
+  # the underlying foundation model in every region the profile can route to must
+  # be allowed. The region wildcard on the model ARN is required for that.
   statement {
-    sid    = "BedrockChat"
-    effect = "Allow"
+    sid = "BedrockChat"
     actions = [
       "bedrock:InvokeModel",
       "bedrock:InvokeModelWithResponseStream",
@@ -53,24 +44,37 @@ data "aws_iam_policy_document" "dev" {
     ]
   }
 
-  # Apply the guardrail during Converse calls.
   statement {
     sid       = "BedrockGuardrail"
-    effect    = "Allow"
     actions   = ["bedrock:ApplyGuardrail"]
     resources = [aws_bedrock_guardrail.this.guardrail_arn]
   }
 
-  # Usage tracking: daily cost budget + per-IP message counters.
   statement {
-    sid    = "DynamoUsage"
-    effect = "Allow"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:UpdateItem",
-    ]
+    sid       = "DynamoUsage"
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
     resources = [aws_dynamodb_table.usage.arn]
   }
 }
 
+# --- indexer -----------------------------------------------------------------
+# Calls: ListVectors (with metadata, hence GetVectors), PutVectors, DeleteVectors,
+# InvokeModel (embed).
+data "aws_iam_policy_document" "indexer" {
+  statement {
+    sid = "S3VectorsSync"
+    actions = [
+      "s3vectors:ListVectors",
+      "s3vectors:GetVectors",
+      "s3vectors:PutVectors",
+      "s3vectors:DeleteVectors",
+    ]
+    resources = [aws_s3vectors_index.pages.index_arn]
+  }
+
+  statement {
+    sid       = "BedrockEmbed"
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["arn:aws:bedrock:${var.region}::foundation-model/${var.bedrock_model_id}"]
+  }
+}

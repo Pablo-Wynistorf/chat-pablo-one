@@ -1,3 +1,8 @@
+# Every input is a string: TerraForge writes project variables to terraform.tfvars
+# as quoted strings (KEY = "value"). Numbers and lists are converted in the locals
+# block at the bottom. Values must not contain double quotes or backslashes, and
+# all project variables together must fit in 4 KB.
+
 variable "region" {
   description = "AWS region. S3 Vectors + Bedrock Titan v2 must both be available here."
   type        = string
@@ -17,15 +22,15 @@ variable "cost_center" {
 }
 
 variable "index_name" {
-  description = "Name of the vector index inside the vector bucket."
+  description = "Name of the vector index inside the vector bucket. Changing it replaces the index, which prevent_destroy blocks."
   type        = string
   default     = "pages"
 }
 
 variable "vector_dimension" {
-  description = "Embedding dimension. Must match the Titan Embed Text v2 output size configured in the indexer."
-  type        = number
-  default     = 1024
+  description = "Embedding dimension (number). Must match the Titan Embed Text v2 output size configured in the indexer."
+  type        = string
+  default     = "1024"
 }
 
 variable "distance_metric" {
@@ -53,14 +58,9 @@ variable "site_url" {
 }
 
 variable "cors_allowed_origins" {
-  description = "Browser origins (scheme://host[:port], no trailing slash) allowed to call the API cross-origin. The chat page itself is same-origin and doesn't need an entry."
-  type        = list(string)
-  default = [
-    "https://pablo.one",
-    "https://www.pablo.one",
-    "http://localhost",
-    "http://localhost:3000",
-  ]
+  description = "Comma-separated browser origins (scheme://host[:port], no trailing slash) allowed to call the API cross-origin. The chat page itself is same-origin and doesn't need an entry."
+  type        = string
+  default     = "https://pablo.one,https://www.pablo.one,http://localhost,http://localhost:3000"
 }
 
 variable "guardrail_blocked_message" {
@@ -70,31 +70,31 @@ variable "guardrail_blocked_message" {
 }
 
 variable "daily_budget_usd" {
-  description = "Approximate max AI token spend per day (USD) before the app stops generating."
-  type        = number
-  default     = 0.5
+  description = "Approximate max AI token spend per day (USD, number) before the app stops generating."
+  type        = string
+  default     = "0.5"
 }
 
 variable "ip_daily_message_limit" {
-  description = "Max chat messages allowed per public IP per day."
-  type        = number
-  default     = 50
+  description = "Max chat messages allowed per public IP per day (number)."
+  type        = string
+  default     = "50"
 }
 
 variable "max_input_tokens" {
-  description = "Max estimated input tokens accepted per user message."
-  type        = number
-  default     = 400
+  description = "Max estimated input tokens accepted per user message (number)."
+  type        = string
+  default     = "400"
 }
 
 variable "non_filterable_metadata_keys" {
-  description = "Metadata keys that are stored/returned but cannot be used in query filters."
-  type        = list(string)
-  default     = ["title", "text", "description"]
+  description = "Comma-separated metadata keys that are stored/returned but cannot be used in query filters. Changing it replaces the index, which prevent_destroy blocks."
+  type        = string
+  default     = "title,text,description"
 }
 
 variable "domain_name" {
-  description = "Custom hostname to serve the chatbot from, e.g. \"chat.pablo.one\". Leave empty to use the generated API Gateway URL. Must be set together with acm_certificate_arn."
+  description = "Custom hostname to serve the chatbot from, e.g. chat.pablo.one. Leave empty to use the generated CloudFront hostname. Must be set together with acm_certificate_arn."
   type        = string
   default     = ""
 
@@ -122,9 +122,9 @@ variable "route53_zone_id" {
 }
 
 variable "frontend_cache_ttl" {
-  description = "CloudFront TTL in seconds for the static frontend, also used as the objects' Cache-Control max-age. The API is never cached."
-  type        = number
-  default     = 60
+  description = "CloudFront TTL in seconds (number) for the static frontend. The API is never cached."
+  type        = string
+  default     = "60"
 }
 
 variable "cloudfront_price_class" {
@@ -138,26 +138,54 @@ variable "cloudfront_price_class" {
   }
 }
 
-variable "web_lambda_memory" {
-  description = "Memory (MB) for the Next.js web Lambda. More memory also means more vCPU."
-  type        = number
-  default     = 1024
-}
-
-variable "web_lambda_timeout" {
-  description = "Timeout (seconds) for the web Lambda. Capped at 30 to match API Gateway HTTP API's max integration timeout."
-  type        = number
-  default     = 30
-}
-
-variable "lwa_layer_arn" {
-  description = "AWS Lambda Web Adapter layer version ARN (arm64) for this region. Proxies API Gateway requests to the Next.js server."
+variable "api_lambda_memory" {
+  description = "Memory (MB, number) for the api Lambda. More memory also means more vCPU."
   type        = string
-  default     = "arn:aws:lambda:eu-central-1:753240598075:layer:LambdaAdapterLayerArm64:25"
+  default     = "1024"
+}
+
+variable "api_lambda_timeout" {
+  description = "Timeout (seconds, number) for the api Lambda. Keep at or below 30, the API Gateway HTTP API integration ceiling."
+  type        = string
+  default     = "30"
+}
+
+variable "indexer_lambda_memory" {
+  description = "Memory (MB, number) for the indexer Lambda."
+  type        = string
+  default     = "1024"
+}
+
+variable "indexer_lambda_timeout" {
+  description = "Timeout (seconds, number) for the indexer Lambda. A full re-embed of the corpus is the slow case."
+  type        = string
+  default     = "900"
+}
+
+variable "indexer_schedule" {
+  description = "EventBridge schedule expression for the indexer, e.g. rate(1 day) or cron(0 3 * * ? *). Empty disables the schedule (manual invokes only)."
+  type        = string
+  default     = "rate(1 day)"
 }
 
 variable "log_retention_days" {
-  description = "CloudWatch Logs retention for the web Lambda."
-  type        = number
-  default     = 14
+  description = "CloudWatch Logs retention (days, number) for both Lambda functions."
+  type        = string
+  default     = "14"
+}
+
+locals {
+  vector_dimension       = tonumber(var.vector_dimension)
+  daily_budget_usd       = tonumber(var.daily_budget_usd)
+  ip_daily_message_limit = tonumber(var.ip_daily_message_limit)
+  max_input_tokens       = tonumber(var.max_input_tokens)
+  frontend_cache_ttl     = tonumber(var.frontend_cache_ttl)
+  api_lambda_memory      = tonumber(var.api_lambda_memory)
+  api_lambda_timeout     = tonumber(var.api_lambda_timeout)
+  indexer_lambda_memory  = tonumber(var.indexer_lambda_memory)
+  indexer_lambda_timeout = tonumber(var.indexer_lambda_timeout)
+  log_retention_days     = tonumber(var.log_retention_days)
+
+  cors_allowed_origins         = [for o in split(",", var.cors_allowed_origins) : trimspace(o) if trimspace(o) != ""]
+  non_filterable_metadata_keys = [for k in split(",", var.non_filterable_metadata_keys) : trimspace(k) if trimspace(k) != ""]
 }

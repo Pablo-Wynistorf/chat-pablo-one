@@ -15,17 +15,14 @@ terraform {
       source  = "hashicorp/archive"
       version = ">= 2.4.0"
     }
-    null = {
-      source  = "hashicorp/null"
-      version = ">= 3.2.0"
-    }
   }
 
-  # Local state only — this is a throwaway POC. Do NOT use for anything real.
+  # No backend block: TerraForge writes backend_override.tf and manages state.
 }
 
 provider "aws" {
   region = var.region
+  # No profile, assume_role or keys: TerraForge provides the credentials.
 
   default_tags {
     tags = {

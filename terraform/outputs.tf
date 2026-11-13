@@ -1,36 +1,60 @@
+# --- TerraForge registration -------------------------------------------------
+
+output "web_bucket" {
+  description = "S3 bucket of the 'web' frontend (frontends/web). Register it as the frontend's target bucket in TerraForge."
+  value       = aws_s3_bucket.web.id
+}
+
+output "web_distribution_id" {
+  description = "CloudFront distribution of the 'web' frontend. Register it on the frontend in TerraForge; also used for cache invalidations."
+  value       = aws_cloudfront_distribution.web.id
+}
+
+output "web_url" {
+  description = "Public URL of the chatbot: the custom domain when configured, otherwise the CloudFront hostname."
+  value       = local.custom_domain_enabled ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.web.domain_name}"
+}
+
+output "api_function_name" {
+  description = "Lambda function of the 'api' function (functions/api). Register it in TerraForge with alias 'live'."
+  value       = aws_lambda_function.api.function_name
+}
+
+output "indexer_function_name" {
+  description = "Lambda function of the 'indexer' function (functions/indexer). Register it in TerraForge with alias 'live'."
+  value       = aws_lambda_function.indexer.function_name
+}
+
+output "api_url" {
+  description = "API Gateway invoke URL. CloudFront routes /api/* here; calling it directly bypasses the CDN."
+  value       = aws_apigatewayv2_stage.default.invoke_url
+}
+
+# --- Diagnostics -------------------------------------------------------------
+
 output "region" {
   description = "AWS region everything was created in."
   value       = var.region
 }
 
+output "cloudfront_domain_name" {
+  description = "Generated CloudFront hostname. Always works, even with a custom domain attached; useful for debugging DNS."
+  value       = aws_cloudfront_distribution.web.domain_name
+}
+
 output "vector_bucket_name" {
-  description = "Name of the S3 vector bucket."
+  description = "Name of the S3 vector bucket (protected against destroy)."
   value       = aws_s3vectors_vector_bucket.this.vector_bucket_name
 }
 
-output "vector_bucket_arn" {
-  description = "ARN of the S3 vector bucket."
-  value       = aws_s3vectors_vector_bucket.this.vector_bucket_arn
-}
-
 output "index_name" {
-  description = "Name of the vector index."
+  description = "Name of the vector index (protected against destroy)."
   value       = aws_s3vectors_index.pages.index_name
 }
 
 output "index_arn" {
   description = "ARN of the vector index."
   value       = aws_s3vectors_index.pages.index_arn
-}
-
-output "bedrock_model_id" {
-  description = "Bedrock embedding model id."
-  value       = var.bedrock_model_id
-}
-
-output "chat_model_id" {
-  description = "Bedrock chat model id (inference profile) used by the RAG chatbot."
-  value       = var.chat_model_id
 }
 
 output "guardrail_id" {
@@ -44,78 +68,26 @@ output "guardrail_version" {
 }
 
 output "usage_table_name" {
-  description = "DynamoDB table tracking daily cost + per-IP message counts."
+  description = "DynamoDB table tracking daily cost and per-IP message counts."
   value       = aws_dynamodb_table.usage.name
 }
 
-output "web_url" {
-  description = "Public URL of the deployed chatbot — the custom domain when configured, otherwise the CloudFront hostname."
-  value       = local.custom_domain_enabled ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.web.domain_name}"
-}
-
-output "cloudfront_domain_name" {
-  description = "Generated CloudFront hostname. Always works, even with a custom domain attached — useful for debugging DNS."
-  value       = aws_cloudfront_distribution.web.domain_name
-}
-
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID, for manual cache invalidations."
-  value       = aws_cloudfront_distribution.web.id
-}
-
-output "frontend_bucket" {
-  description = "S3 bucket for the frontend. Register it as the 'web' frontend's bucket in TerraForge; TerraForge uploads build versions here."
-  value       = aws_s3_bucket.frontend.id
-}
-
-output "api_gateway_url" {
-  description = "API Gateway invoke URL. The CloudFront /api/* behaviour points here; hitting it directly bypasses the CDN and the edge geo headers."
-  value       = aws_apigatewayv2_stage.web.invoke_url
-}
-
-# The DNS record to create by hand. Terraform can only manage this automatically
-# for Route 53 zones; for any other DNS provider (Cloudflare, etc.) this output is
-# the one manual step in the deploy.
+# The DNS record to create by hand. Terraform manages it only for Route 53 zones.
 output "dns_record" {
   description = "DNS record to create for the custom domain. Null when no custom domain is configured, or when Terraform already created it in Route 53."
   value = local.custom_domain_enabled && var.route53_zone_id == "" ? {
     type  = "CNAME"
     name  = var.domain_name
     value = aws_cloudfront_distribution.web.domain_name
-    note  = "Create this at your DNS provider, pointing at the CloudFront hostname. If ${var.domain_name} is an apex/root domain, CNAME is invalid there — use your provider's ALIAS/ANAME/CNAME-flattening equivalent (Cloudflare's CNAME flattening works)."
+    note  = "Create this at your DNS provider, pointing at the CloudFront hostname. For an apex domain use your provider's ALIAS/ANAME/CNAME-flattening equivalent."
   } : null
 }
 
-# Which corpus Terraform believes is loaded. The per-chunk record of what is
-# actually indexed lives in the vectors' own `contentHash` metadata — see
-# indexer.tf for why the index, not Terraform, is the source of truth.
-output "indexed_corpus" {
-  description = "Content hashes of the data files currently loaded into the vector index."
-  value = {
-    corpus_hash = terraform_data.vector_index_load.output.corpus_hash
-    files       = terraform_data.vector_index_load.output.files
-    embed_model = terraform_data.vector_index_load.output.embed_model
-  }
-}
-
-output "web_lambda_name" {
-  description = "Name of the Next.js web Lambda function. Register it as the 'web' function in TerraForge."
-  value       = aws_lambda_function.web.function_name
-}
-
-output "web_lambda_alias" {
-  description = "Lambda alias TerraForge moves on deploy. Register this as the function's alias in TerraForge."
-  value       = aws_lambda_alias.web_live.name
-}
-
-# Ready-to-copy contents for web/.env.local (the indexer reads the same vars).
-# Contains only ARNs/names — no secrets — so it is safe to print.
+# Ready-to-copy contents for functions/api/.env.local and functions/indexer/.env.local.
+# Contains only names/ARNs, no secrets.
 output "env_local" {
-  description = "Paste into web/.env.local (see README.md)."
-  # No AWS_ROLE_ARN: locally the indexer/dev server use your logged-in account
-  # credentials directly (indexer/lib/aws.ts only assumes a role when the var is
-  # set). On Lambda the app runs as its own execution role.
-  value = <<-EOT
+  description = "Paste into functions/api/.env.local and functions/indexer/.env.local for local development."
+  value       = <<-EOT
     AWS_REGION=${var.region}
     VECTOR_BUCKET=${aws_s3vectors_vector_bucket.this.vector_bucket_name}
     VECTOR_INDEX=${aws_s3vectors_index.pages.index_name}

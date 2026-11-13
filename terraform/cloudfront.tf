@@ -1,12 +1,12 @@
 # One CloudFront distribution fronting both origins:
 #
 #   default   -> S3 (the built frontend), cached for var.frontend_cache_ttl
-#   /api/*    -> API Gateway (the Next.js API Lambda), never cached
+#   /api/*    -> API Gateway (the api Lambda, functions/api), never cached
 #
 # The TLS certificate lives here, so it must be in us-east-1 — a CloudFront
 # requirement regardless of where the rest of the stack runs.
 
-resource "aws_cloudfront_origin_access_control" "frontend" {
+resource "aws_cloudfront_origin_access_control" "web" {
   name                              = "${var.project_name}-frontend-oac"
   description                       = "Signed access from CloudFront to the private frontend bucket."
   origin_access_control_origin_type = "s3"
@@ -19,9 +19,9 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 resource "aws_cloudfront_cache_policy" "frontend" {
   name        = "${var.project_name}-frontend"
   comment     = "Static frontend: short TTL, no request variation."
-  min_ttl     = var.frontend_cache_ttl
-  default_ttl = var.frontend_cache_ttl
-  max_ttl     = var.frontend_cache_ttl
+  min_ttl     = local.frontend_cache_ttl
+  default_ttl = local.frontend_cache_ttl
+  max_ttl     = local.frontend_cache_ttl
 
   parameters_in_cache_key_and_forwarded_to_origin {
     enable_accept_encoding_gzip   = true
@@ -157,15 +157,15 @@ resource "aws_cloudfront_distribution" "web" {
 
   origin {
     origin_id                = local.frontend_origin_id
-    domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
-    origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+    domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
   origin {
     origin_id = local.api_origin_id
     # The API Gateway invoke URL is https://<id>.execute-api.<region>.amazonaws.com
     # and CloudFront wants the bare host.
-    domain_name = replace(replace(aws_apigatewayv2_stage.web.invoke_url, "https://", ""), "/", "")
+    domain_name = replace(replace(aws_apigatewayv2_stage.default.invoke_url, "https://", ""), "/", "")
 
     custom_origin_config {
       origin_protocol_policy = "https-only"
@@ -211,14 +211,14 @@ resource "aws_cloudfront_distribution" "web" {
     error_code            = 403
     response_code         = 404
     response_page_path    = "/404.html"
-    error_caching_min_ttl = var.frontend_cache_ttl
+    error_caching_min_ttl = local.frontend_cache_ttl
   }
 
   custom_error_response {
     error_code            = 404
     response_code         = 404
     response_page_path    = "/404.html"
-    error_caching_min_ttl = var.frontend_cache_ttl
+    error_caching_min_ttl = local.frontend_cache_ttl
   }
 
   restrictions {
