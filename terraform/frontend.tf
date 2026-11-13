@@ -1,5 +1,10 @@
 # S3 bucket holding the built frontend. Private: reachable only through
 # CloudFront, via an Origin Access Control signed request.
+#
+# TERRAFORGE OWNERSHIP: Terraform creates ONLY the bucket and its config here.
+# It never manages site objects (no aws_s3_object). TerraForge uploads each build
+# to s3://<bucket>/versions/<version_id>/... with the account admin role and then
+# activates a version by switching the CloudFront origin_path (see cloudfront.tf).
 
 resource "aws_s3_bucket" "frontend" {
   bucket        = "${var.project_name}-frontend-${random_id.suffix.hex}"
@@ -33,6 +38,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   }
 }
 
+# TerraForge stores every build under its own versions/<id>/ prefix and activates
+# by origin path, so object versioning is not required for rollback. Kept enabled
+# as a safety net against accidental overwrite/delete of a published version.
 resource "aws_s3_bucket_versioning" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -41,11 +49,10 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
-# Only this distribution may read the bucket.
-#
-# s3:ListBucket is granted alongside GetObject so a missing key returns 404
-# rather than 403 — without it S3 hides the difference, and CloudFront would have
-# to treat every 403 as "not found", including genuine 403s from the API origin.
+# Only this distribution may read the bucket. GetObject only, scoped to the
+# distribution ARN — the TerraForge-recommended OAC policy. A missing key
+# therefore answers 403 (not 404); CloudFront maps both to the 404 page
+# (see custom_error_response in cloudfront.tf).
 data "aws_iam_policy_document" "frontend" {
   statement {
     sid    = "AllowCloudFrontRead"
@@ -56,12 +63,8 @@ data "aws_iam_policy_document" "frontend" {
       identifiers = ["cloudfront.amazonaws.com"]
     }
 
-    actions = ["s3:GetObject", "s3:ListBucket"]
-
-    resources = [
-      aws_s3_bucket.frontend.arn,
-      "${aws_s3_bucket.frontend.arn}/*",
-    ]
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.frontend.arn}/*"]
 
     condition {
       test     = "StringEquals"
@@ -74,46 +77,4 @@ data "aws_iam_policy_document" "frontend" {
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
   policy = data.aws_iam_policy_document.frontend.json
-}
-
-# Upload the built frontend as individually managed objects. See the module for
-# why this isn't `aws s3 sync`.
-module "frontend_files" {
-  source = "./modules/s3-site-upload"
-
-  bucket = aws_s3_bucket.frontend.id
-  # local.static_dir flows from data.external.web_build, so its value carries the
-  # dependency on the build: the module's fileset() cannot enumerate the directory
-  # before the build has written it.
-  source_dir = local.static_dir
-
-  # Everything is served through CloudFront with a 60s TTL; matching the object
-  # header keeps browser and edge behaviour consistent.
-  cache_control = "public, max-age=${var.frontend_cache_ttl}"
-
-  depends_on = [
-    aws_s3_bucket_ownership_controls.frontend,
-    aws_s3_bucket_public_access_block.frontend,
-  ]
-}
-
-# A new build means index.html changed under the same key, so the edge copy has to
-# go. Asset filenames are content-hashed and don't strictly need this, but a single
-# wildcard invalidation is simpler than enumerating paths and the first 1,000
-# invalidation paths per month are free.
-resource "terraform_data" "frontend_invalidation" {
-  triggers_replace = {
-    content_hash = module.frontend_files.content_hash
-  }
-
-  provisioner "local-exec" {
-    command = join(" ", [
-      "aws cloudfront create-invalidation",
-      "--distribution-id ${aws_cloudfront_distribution.web.id}",
-      "--paths '/*'",
-      "--region ${var.region}",
-      "--no-cli-pager",
-      "--output text",
-    ])
-  }
 }

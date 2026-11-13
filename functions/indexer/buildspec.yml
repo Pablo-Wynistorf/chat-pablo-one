@@ -1,0 +1,36 @@
+# TerraForge Lambda function build: vector-index sync (indexer)
+#
+# Build context: folder (default). Runs in functions/indexer. CodeBuild zips
+# everything under artifacts.base-directory into the Lambda deployment package;
+# TerraForge uploads it as a new Lambda version. Nothing goes live until you
+# deploy the version from the dashboard, which moves the "live" alias.
+#
+# The package is the bundled handler plus the committed chunk files:
+#   dist/index.mjs   handler "index.handler" (esbuild bundle, AWS SDK included)
+#   dist/data/*.json the corpus to embed (refresh locally with `npm run ingest:all`
+#                    and commit; a new commit under this folder = a new build)
+#
+# The crawl/ingest scripts are NOT part of the package; they run locally.
+# Runtime configuration (bucket, index, model) is owned by Terraform. Builds have
+# no AWS credentials.
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - npm ci
+
+  build:
+    commands:
+      - npm run typecheck
+      - npm run build
+      - test -f dist/index.mjs
+      - ls dist/data/*.json
+
+artifacts:
+  base-directory: dist
+  files:
+    - '**/*'
+  discard-paths: no

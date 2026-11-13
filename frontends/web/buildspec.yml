@@ -1,0 +1,35 @@
+# TerraForge frontend build: chat UI (Next.js 14 static export)
+#
+# Build context: folder (default). Runs in frontends/web; TerraForge publishes
+# everything under artifacts.base-directory to the frontend bucket as a new
+# version, then you activate it on CloudFront from the dashboard.
+#
+# No build variables are needed: the page calls the API with root-relative URLs
+# (/api/greeting, /api/chat), and CloudFront routes /api/* to API Gateway on the
+# same hostname. All AWS/model/budget configuration is runtime-only and lives on
+# the API Lambda (terraform/functions.tf). Anything set as a build variable would
+# end up in the public bundle, so never put secrets here.
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - npm ci
+
+  build:
+    commands:
+      # next.config.mjs sets output: "export", so this writes a static site to out/.
+      - npm run build
+      # Fail loudly if the root route stopped being statically exportable.
+      - test -f out/index.html
+      - test -f out/404.html
+
+artifacts:
+  # Static export folder. Asset names under _next/static are content-hashed, so
+  # after activation only index.html needs a fresh fetch (invalidate /*).
+  base-directory: out
+  files:
+    - '**/*'
+  discard-paths: no

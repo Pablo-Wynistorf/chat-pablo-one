@@ -203,9 +203,17 @@ resource "aws_cloudfront_distribution" "web" {
     origin_request_policy_id = local.managed_all_viewer_except_host
   }
 
-  # A missing object returns a real 404 because the bucket policy grants
-  # ListBucket; without that S3 would answer 403 and this mapping would have to
-  # swallow genuine 403s from the API origin too.
+  # The OAC bucket policy grants GetObject only, so S3 answers a missing key with
+  # 403, not 404. Map both to the static 404 page. (Before the first frontend
+  # version is activated the whole bucket 403s — the site returns the 404 page or
+  # a bare CloudFront error until then, which is expected.)
+  custom_error_response {
+    error_code            = 403
+    response_code         = 404
+    response_page_path    = "/404.html"
+    error_caching_min_ttl = var.frontend_cache_ttl
+  }
+
   custom_error_response {
     error_code            = 404
     response_code         = 404
@@ -227,6 +235,13 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   lifecycle {
+    # TerraForge activates a frontend version by rewriting the S3 origin's
+    # origin_path to /versions/<version_id>. Terraform must not fight that, so it
+    # ignores all origin changes. CAVEAT: this also means later origin edits in
+    # Terraform (including the API-Gateway origin's domain_name) are ignored — to
+    # change an origin on purpose, remove this ignore temporarily and re-apply.
+    ignore_changes = [origin]
+
     precondition {
       # CloudFront only accepts certificates from us-east-1, whatever region the
       # rest of the stack lives in. Checked here so the failure is a clear message

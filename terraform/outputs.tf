@@ -64,13 +64,8 @@ output "cloudfront_distribution_id" {
 }
 
 output "frontend_bucket" {
-  description = "S3 bucket holding the built frontend. Private — readable only by this distribution."
+  description = "S3 bucket for the frontend. Register it as the 'web' frontend's bucket in TerraForge; TerraForge uploads build versions here."
   value       = aws_s3_bucket.frontend.id
-}
-
-output "frontend_objects" {
-  description = "Number of frontend files uploaded to S3 by Terraform."
-  value       = module.frontend_files.object_count
 }
 
 output "api_gateway_url" {
@@ -104,8 +99,13 @@ output "indexed_corpus" {
 }
 
 output "web_lambda_name" {
-  description = "Name of the Next.js web Lambda function."
+  description = "Name of the Next.js web Lambda function. Register it as the 'web' function in TerraForge."
   value       = aws_lambda_function.web.function_name
+}
+
+output "web_lambda_alias" {
+  description = "Lambda alias TerraForge moves on deploy. Register this as the function's alias in TerraForge."
+  value       = aws_lambda_alias.web_live.name
 }
 
 # Ready-to-copy contents for web/.env.local (the indexer reads the same vars).

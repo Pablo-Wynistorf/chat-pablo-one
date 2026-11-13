@@ -1,8 +1,26 @@
-# Next.js chatbot served from a single Lambda via the AWS Lambda Web Adapter,
-# fronted by API Gateway (see apigateway.tf).
+# Next.js chatbot API served from a single Lambda via the AWS Lambda Web Adapter,
+# fronted by API Gateway (see apigateway.tf) and CloudFront (/api/*).
+#
+# TERRAFORGE OWNERSHIP: Terraform owns everything about this function EXCEPT the
+# code — runtime, handler, memory, timeout, IAM role, layers and environment. It
+# deploys a tiny placeholder zip so the function (and its published version + the
+# "live" alias) can exist on the first apply. TerraForge then builds
+# functions/web, uploads the real zip, publishes a version and moves the "live"
+# alias to it. Everything that invokes the function points at the alias, never at
+# the unqualified function or $LATEST.
 
-# The build and the zip both live in build.tf: they are shared with the S3
-# frontend, and both have to resolve at plan time.
+# --- Placeholder code ---------------------------------------------------------
+
+# Replaced by TerraForge on the first function deploy; see ignore_changes below.
+data "archive_file" "web_placeholder" {
+  type        = "zip"
+  output_path = "${path.module}/.placeholder/web.zip"
+
+  source {
+    filename = "index.js"
+    content  = "exports.handler = async () => ({ statusCode: 503, body: 'Not deployed yet' });"
+  }
+}
 
 # --- Execution role -----------------------------------------------------------
 
@@ -49,12 +67,18 @@ resource "aws_lambda_function" "web" {
   description   = "RAG chatbot API (/api/*) — Lambda Web Adapter behind API Gateway and CloudFront."
   role          = aws_iam_role.web_lambda.arn
 
-  filename         = data.archive_file.web_lambda.output_path
-  source_code_hash = data.archive_file.web_lambda.output_base64sha256
+  # Placeholder only; TerraForge replaces the code. ignore_changes keeps Terraform
+  # from reverting a deployed version back to the placeholder on later applies.
+  filename         = data.archive_file.web_placeholder.output_path
+  source_code_hash = data.archive_file.web_placeholder.output_base64sha256
+
+  # A numbered version for the "live" alias to point at.
+  publish = true
 
   runtime       = "nodejs20.x"
   architectures = ["arm64"]
-  # Generated into the artifact by build.tf; the repo has no shell scripts.
+  # Generated into the artifact by functions/web/buildspec.yml; the real code
+  # runs under the Lambda Web Adapter, which execs this handler.
   handler     = "run.sh"
   memory_size = var.web_lambda_memory
   timeout     = var.web_lambda_timeout
@@ -88,9 +112,31 @@ resource "aws_lambda_function" "web" {
     }
   }
 
+  lifecycle {
+    # Code is deployed by TerraForge, not Terraform. A change to environment
+    # variables above still applies on the next apply, but only reaches traffic
+    # after the next TerraForge build is published and deployed.
+    ignore_changes = [filename, source_code_hash, s3_bucket, s3_key, s3_object_version]
+  }
+
   depends_on = [
     aws_iam_role_policy.web_lambda,
     aws_iam_role_policy_attachment.web_lambda_basic,
     aws_cloudwatch_log_group.web_lambda,
   ]
+}
+
+# The "live" alias is what API Gateway (and anything else) invokes. TerraForge
+# moves it to each newly published version on deploy; Terraform must not move it
+# back, hence ignore_changes on function_version. Created here (not by TerraForge)
+# so the API Gateway permission can reference it on the first apply.
+resource "aws_lambda_alias" "web_live" {
+  name             = "live"
+  description      = "Version served to traffic; moved by TerraForge on deploy."
+  function_name    = aws_lambda_function.web.function_name
+  function_version = aws_lambda_function.web.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
 }

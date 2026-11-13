@@ -1,0 +1,31 @@
+{
+  "name": "pablo-one-poc-indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ingest scripts (local) + the indexer Lambda that embeds data/*.json into the S3 Vectors index.",
+  "scripts": {
+    "crawl": "tsx crawl.ts",
+    "ingest:github": "tsx github.ts",
+    "ingest:code": "tsx code.ts",
+    "ingest:docs": "tsx docs.ts",
+    "ingest:all": "tsx crawl.ts && tsx github.ts && tsx code.ts && tsx docs.ts",
+    "index": "tsx embed_and_insert.ts",
+    "index:dry-run": "tsx embed_and_insert.ts --dry-run",
+    "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/index.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --legal-comments=none && mkdir -p dist/data && cp data/*.json dist/data/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.700.0",
+    "@aws-sdk/client-s3vectors": "^3.700.0",
+    "@aws-sdk/credential-providers": "^3.700.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

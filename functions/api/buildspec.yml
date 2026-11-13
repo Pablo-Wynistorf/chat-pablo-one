@@ -1,0 +1,36 @@
+# TerraForge Lambda function build: chat API (/api/chat, /api/greeting, /api/search)
+#
+# Build context: folder (default). Runs in functions/api. CodeBuild zips
+# everything under artifacts.base-directory into the Lambda deployment package;
+# TerraForge uploads it as a new Lambda version. Nothing goes live until you
+# deploy the version from the dashboard, which moves the function's "live" alias.
+#
+# esbuild bundles the handler and all runtime dependencies (AWS SDK clients
+# included) into a single dist/index.mjs, so no node_modules are shipped. The
+# Terraform handler is "index.handler".
+#
+# Runtime configuration (vector bucket/index, model ids, guardrail, usage table,
+# budgets) is owned by Terraform (aws_lambda_function.environment), not set here.
+# Builds have no AWS credentials.
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - npm ci
+
+  build:
+    commands:
+      - npm run typecheck
+      - npm run build
+      # The handler file must sit at the top of the package.
+      - test -f dist/index.mjs
+
+artifacts:
+  # Zipped as-is: dist/index.mjs becomes the handler module "index".
+  base-directory: dist
+  files:
+    - '**/*'
+  discard-paths: no

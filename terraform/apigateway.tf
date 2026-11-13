@@ -11,7 +11,9 @@ resource "aws_apigatewayv2_api" "web" {
 resource "aws_apigatewayv2_integration" "web" {
   api_id           = aws_apigatewayv2_api.web.id
   integration_type = "AWS_PROXY"
-  integration_uri  = aws_lambda_function.web.invoke_arn
+  # The "live" alias, never the bare function/$LATEST: TerraForge deploys by
+  # moving this alias, so API Gateway must invoke it to pick up new versions.
+  integration_uri = aws_lambda_alias.web_live.invoke_arn
   # Lambda proxy integrations are always invoked with POST regardless of the
   # client's HTTP method (the real method is carried in the event).
   integration_method     = "POST"
@@ -43,6 +45,9 @@ resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.web.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.web.execution_arn}/*/*"
+  # Grant invoke on the alias specifically (qualified permission), matching the
+  # integration above.
+  qualifier  = aws_lambda_alias.web_live.name
+  principal  = "apigateway.amazonaws.com"
+  source_arn = "${aws_apigatewayv2_api.web.execution_arn}/*/*"
 }
