@@ -1,6 +1,6 @@
 # API Gateway HTTP API in front of the api function's "live" alias. CloudFront
-# routes /api/* here (cloudfront.tf). A single $default route proxies every path
-# to the function, which does its own routing (functions/api/src/app.ts).
+# routes /api/* here (cloudfront.tf). One route per API endpoint, all on the same
+# integration; the function does its own routing (functions/api/src/app.ts).
 #
 # The routes are deliberately public (no authorizer): it is an anonymous chat
 # widget. Abuse is bounded by the stage throttling below and the per-IP and daily
@@ -40,9 +40,22 @@ resource "aws_apigatewayv2_integration" "api" {
   timeout_milliseconds = 30000
 }
 
-resource "aws_apigatewayv2_route" "api_default" {
+# Explicit routes, no $default catch-all. A $default route also matches OPTIONS,
+# which would send CORS preflights to the Lambda (405). With no OPTIONS route,
+# API Gateway answers preflights itself from cors_configuration above.
+# Keep in sync with ROUTES in functions/api/src/app.ts.
+locals {
+  api_routes = toset([
+    "POST /api/chat",
+    "GET /api/greeting",
+    "POST /api/search",
+  ])
+}
+
+resource "aws_apigatewayv2_route" "api" {
+  for_each  = local.api_routes
   api_id    = aws_apigatewayv2_api.api.id
-  route_key = "$default"
+  route_key = each.value
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 

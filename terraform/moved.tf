@@ -55,11 +55,6 @@ moved {
 }
 
 moved {
-  from = aws_apigatewayv2_route.web_default
-  to   = aws_apigatewayv2_route.api_default
-}
-
-moved {
   from = aws_apigatewayv2_stage.web
   to   = aws_apigatewayv2_stage.default
 }
